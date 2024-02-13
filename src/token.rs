@@ -10,6 +10,13 @@ pub enum TokenType {
     // Operators
     ASSIGN,
     PLUS,
+    MINUS,
+    BANG,
+    ASTERISK,
+    SLASH,
+
+    LT,
+    GT,
 
     // Delimiters
     COMMA,
@@ -23,6 +30,11 @@ pub enum TokenType {
     // Keywords
     FUNCTION,
     LET,
+    TRUE,
+    FALSE,
+    IF,
+    ELSE,
+    RETURN,
 }
 
 #[derive(Debug, PartialEq)]
@@ -36,6 +48,11 @@ impl TokenType {
         match ident {
             "fn" => TokenType::FUNCTION,
             "let" => TokenType::LET,
+            "true" => TokenType::TRUE,
+            "false" => TokenType::FALSE,
+            "if" => TokenType::IF,
+            "else" => TokenType::ELSE,
+            "return" => TokenType::RETURN,
             _ => TokenType::IDENT,
         }
     }

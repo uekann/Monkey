@@ -8,6 +8,10 @@ pub struct Lexer<'a> {
     symbol: Option<char>, // Changed type to Option<char>
 }
 
+fn can_use_as_ident(c: char) -> bool {
+    !(c.is_ascii_digit() || c.is_whitespace() || c.is_control() || c.is_ascii_punctuation())
+}
+
 impl<'a> Lexer<'a> {
     fn new(input: &'a str) -> Lexer<'a> {
         let mut l = Lexer {
@@ -34,7 +38,7 @@ impl<'a> Lexer<'a> {
     fn read_identifier(&mut self) -> &'a str {
         let position = self.position;
         while let Some(symbol) = self.symbol {
-            if symbol.is_alphabetic() {
+            if can_use_as_ident(symbol) {
                 self.read_symbol();
             } else {
                 break;
@@ -63,6 +67,30 @@ impl<'a> Lexer<'a> {
             Some('+') => Token {
                 token_type: TokenType::PLUS,
                 literal: "+",
+            },
+            Some('-') => Token {
+                token_type: TokenType::MINUS,
+                literal: "-",
+            },
+            Some('!') => Token {
+                token_type: TokenType::BANG,
+                literal: "!",
+            },
+            Some('*') => Token {
+                token_type: TokenType::ASTERISK,
+                literal: "*",
+            },
+            Some('/') => Token {
+                token_type: TokenType::SLASH,
+                literal: "/",
+            },
+            Some('<') => Token {
+                token_type: TokenType::LT,
+                literal: "<",
+            },
+            Some('>') => Token {
+                token_type: TokenType::GT,
+                literal: ">",
             },
             Some(',') => Token {
                 token_type: TokenType::COMMA,
@@ -102,7 +130,7 @@ impl<'a> Lexer<'a> {
                     literal: &self.input[position..self.position],
                 };
             }
-            Some(c) if c.is_alphabetic() => {
+            Some(c) if can_use_as_ident(c) => {
                 let literal = self.read_identifier();
                 let token_type = TokenType::lookup_ident(literal);
                 return Token {
@@ -344,19 +372,23 @@ mod test {
 
     #[test]
     fn test_next_token3() {
-        let input = "漢字 😄 ＋";
+        let input = "漢字 😄 ＋ 🇯🇵";
         let tests = vec![
             Token {
                 token_type: TokenType::IDENT,
                 literal: "漢字",
             },
             Token {
-                token_type: TokenType::ILLEGAL,
+                token_type: TokenType::IDENT,
                 literal: "😄",
             },
             Token {
-                token_type: TokenType::ILLEGAL,
+                token_type: TokenType::IDENT,
                 literal: "＋",
+            },
+            Token {
+                token_type: TokenType::IDENT,
+                literal: "🇯🇵",
             },
         ];
         let mut l = Lexer::new(input);
