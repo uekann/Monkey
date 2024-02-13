@@ -1,5 +1,3 @@
-// token.rsの呼び出し
-
 use crate::token::{Token, TokenType};
 
 #[derive(Default, Debug)]
@@ -7,7 +5,7 @@ pub struct Lexer<'a> {
     input: &'a str,
     position: usize,
     read_position: usize,
-    symbol: Option<&'a str>,
+    symbol: Option<char>, // Changed type to Option<char>
 }
 
 impl<'a> Lexer<'a> {
@@ -20,104 +18,107 @@ impl<'a> Lexer<'a> {
         l
     }
     fn read_symbol(&mut self) -> () {
-        self.symbol = self.input.get(self.read_position..self.read_position + 1);
         self.position = self.read_position;
-        self.read_position += 1;
+        match self.input[self.read_position..].char_indices().next() {
+            Some((u, c)) => {
+                self.read_position += u + c.len_utf8();
+                self.symbol = Some(c);
+            }
+            None => {
+                self.symbol = None;
+                self.read_position += 1;
+            }
+        }
     }
 
     fn read_identifier(&mut self) -> &'a str {
         let position = self.position;
-        while self.symbol.is_some() && self.symbol.unwrap().chars().nth(0).unwrap().is_alphabetic()
-        {
-            self.read_symbol();
+        while let Some(symbol) = self.symbol {
+            if symbol.is_alphabetic() {
+                self.read_symbol();
+            } else {
+                break;
+            }
         }
-        self.input.get(position..self.position).unwrap()
+        &self.input[position..self.position]
     }
 
     fn skip_whitespace(&mut self) -> () {
-        while self.symbol.is_some() && self.symbol.unwrap().chars().nth(0).unwrap().is_whitespace()
-        {
-            self.read_symbol();
+        while let Some(symbol) = self.symbol {
+            if symbol.is_whitespace() {
+                self.read_symbol();
+            } else {
+                break;
+            }
         }
     }
 
     fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match self.symbol {
-            Some("=") => Token {
+            Some('=') => Token {
                 token_type: TokenType::ASSIGN,
                 literal: "=",
             },
-            Some("+") => Token {
+            Some('+') => Token {
                 token_type: TokenType::PLUS,
                 literal: "+",
             },
-            Some(",") => Token {
+            Some(',') => Token {
                 token_type: TokenType::COMMA,
                 literal: ",",
             },
-            Some(";") => Token {
+            Some(';') => Token {
                 token_type: TokenType::SEMICOLON,
                 literal: ";",
             },
-            Some("(") => Token {
+            Some('(') => Token {
                 token_type: TokenType::LPAREN,
                 literal: "(",
             },
-            Some(")") => Token {
+            Some(')') => Token {
                 token_type: TokenType::RPAREN,
                 literal: ")",
             },
-            Some("{") => Token {
+            Some('{') => Token {
                 token_type: TokenType::LBRACE,
                 literal: "{",
             },
-            Some("}") => Token {
+            Some('}') => Token {
                 token_type: TokenType::RBRACE,
                 literal: "}",
             },
-            Some(c) if c.chars().nth(0).unwrap().is_alphabetic() => {
-                let literal = self.read_identifier();
-                match literal {
-                    "fn" => {
-                        return Token {
-                            token_type: TokenType::FUNCTION,
-                            literal,
-                        }
-                    }
-                    "let" => {
-                        return Token {
-                            token_type: TokenType::LET,
-                            literal,
-                        }
-                    }
-                    _ => {
-                        return Token {
-                            token_type: TokenType::IDENT,
-                            literal,
-                        }
-                    }
-                }
-            }
-            Some(c) if c.chars().nth(0).unwrap().is_numeric() => {
+            Some(c) if c.is_ascii_digit() => {
                 let position = self.position;
-                while self.symbol.is_some()
-                    && self.symbol.unwrap().chars().nth(0).unwrap().is_numeric()
-                {
-                    self.read_symbol();
+                while let Some(symbol) = self.symbol {
+                    if symbol.is_numeric() {
+                        self.read_symbol();
+                    } else {
+                        break;
+                    }
                 }
                 return Token {
                     token_type: TokenType::INT,
-                    literal: self.input.get(position..self.position).unwrap(),
+                    literal: &self.input[position..self.position],
                 };
             }
-            None => Token {
-                token_type: TokenType::EOF,
-                literal: "",
-            },
+            Some(c) if c.is_alphabetic() => {
+                let literal = self.read_identifier();
+                let token_type = TokenType::lookup_ident(literal);
+                return Token {
+                    token_type,
+                    literal,
+                };
+            }
+            None => {
+                return Token {
+                    token_type: TokenType::EOF,
+                    literal: "",
+                }
+            }
             _ => Token {
                 token_type: TokenType::ILLEGAL,
-                literal: self.symbol.unwrap_or(""),
+                literal: &self.input[self.position..self.read_position], // Updated symbol handling
             },
         };
         self.read_symbol();
@@ -334,6 +335,30 @@ mod test {
             },
         ];
 
+        let mut l = Lexer::new(input);
+        for test in tests.iter() {
+            let token: Token = l.next_token();
+            assert_eq!(token, *test)
+        }
+    }
+
+    #[test]
+    fn test_next_token3() {
+        let input = "漢字 😄 ＋";
+        let tests = vec![
+            Token {
+                token_type: TokenType::IDENT,
+                literal: "漢字",
+            },
+            Token {
+                token_type: TokenType::ILLEGAL,
+                literal: "😄",
+            },
+            Token {
+                token_type: TokenType::ILLEGAL,
+                literal: "＋",
+            },
+        ];
         let mut l = Lexer::new(input);
         for test in tests.iter() {
             let token: Token = l.next_token();
