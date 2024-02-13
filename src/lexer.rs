@@ -37,14 +37,26 @@ impl<'a> Lexer<'a> {
 
     fn read_identifier(&mut self) -> &'a str {
         let position = self.position;
-        while let Some(symbol) = self.symbol {
+        while let Some(symbol) = self.peak_symbol() {
             if can_use_as_ident(symbol) {
                 self.read_symbol();
             } else {
                 break;
             }
         }
-        &self.input[position..self.position]
+        &self.input[position..self.read_position]
+    }
+
+    fn read_number(&mut self) -> &'a str {
+        let position = self.position;
+        while let Some(symbol) = self.peak_symbol() {
+            if symbol.is_numeric() {
+                self.read_symbol();
+            } else {
+                break;
+            }
+        }
+        &self.input[position..self.read_position]
     }
 
     fn skip_whitespace(&mut self) -> () {
@@ -57,13 +69,30 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    fn peak_symbol(&self) -> Option<char> {
+        self.input[self.read_position..]
+            .char_indices()
+            .next()
+            .map(|(_, c)| c)
+    }
+
     fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match self.symbol {
-            Some('=') => Token {
-                token_type: TokenType::ASSIGN,
-                literal: "=",
-            },
+            Some('=') => {
+                if self.peak_symbol() == Some('=') {
+                    self.read_symbol();
+                    Token {
+                        token_type: TokenType::EQ,
+                        literal: "==",
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::ASSIGN,
+                        literal: "=",
+                    }
+                }
+            }
             Some('+') => Token {
                 token_type: TokenType::PLUS,
                 literal: "+",
@@ -72,10 +101,20 @@ impl<'a> Lexer<'a> {
                 token_type: TokenType::MINUS,
                 literal: "-",
             },
-            Some('!') => Token {
-                token_type: TokenType::BANG,
-                literal: "!",
-            },
+            Some('!') => {
+                if self.peak_symbol() == Some('=') {
+                    self.read_symbol();
+                    Token {
+                        token_type: TokenType::NOT_EQ,
+                        literal: "!=",
+                    }
+                } else {
+                    Token {
+                        token_type: TokenType::BANG,
+                        literal: "!",
+                    }
+                }
+            }
             Some('*') => Token {
                 token_type: TokenType::ASTERISK,
                 literal: "*",
@@ -117,26 +156,18 @@ impl<'a> Lexer<'a> {
                 literal: "}",
             },
             Some(c) if c.is_ascii_digit() => {
-                let position = self.position;
-                while let Some(symbol) = self.symbol {
-                    if symbol.is_numeric() {
-                        self.read_symbol();
-                    } else {
-                        break;
-                    }
-                }
-                return Token {
+                let literal = self.read_number();
+                Token {
                     token_type: TokenType::INT,
-                    literal: &self.input[position..self.position],
-                };
+                    literal: literal,
+                }
             }
             Some(c) if can_use_as_ident(c) => {
                 let literal = self.read_identifier();
-                let token_type = TokenType::lookup_ident(literal);
-                return Token {
-                    token_type,
+                Token {
+                    token_type: TokenType::lookup_ident(literal),
                     literal,
-                };
+                }
             }
             None => {
                 return Token {
