@@ -372,7 +372,7 @@ mod test {
 
     #[test]
     fn test_next_token3() {
-        let input = "漢字 😄 ＋ 🇯🇵";
+        let input = "漢字 😄 ＋ 🇯🇵 \u{001B}";
         let tests = vec![
             Token {
                 token_type: TokenType::IDENT,
@@ -389,6 +389,10 @@ mod test {
             Token {
                 token_type: TokenType::IDENT,
                 literal: "🇯🇵",
+            },
+            Token {
+                token_type: TokenType::ILLEGAL,
+                literal: "\u{001B}",
             },
         ];
         let mut l = Lexer::new(input);
