@@ -13,7 +13,7 @@ fn can_use_as_ident(c: char) -> bool {
 }
 
 impl<'a> Lexer<'a> {
-    fn new(input: &'a str) -> Lexer<'a> {
+    pub fn new(input: &'a str) -> Lexer<'a> {
         let mut l = Lexer {
             input,
             ..Default::default()
@@ -76,7 +76,7 @@ impl<'a> Lexer<'a> {
             .map(|(_, c)| c)
     }
 
-    fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token {
         self.skip_whitespace();
         let token = match self.symbol {
             Some('=') => {
