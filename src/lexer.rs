@@ -242,7 +242,27 @@ mod test {
 
     #[test]
     fn test_next_token2() {
-        let input = "let five = 5;\nlet ten = 10;\n\nlet add = fn(x, y) {\n  x + y;\n};\nlet result = add(five, ten);\n";
+        let input = "
+            let five = 5;
+            let ten = 10;
+            
+            let add = fn(x, y) {
+                x + y;
+            };
+            let result = add(five, ten);
+
+            !-/*5;
+            5 < 10 > 5;
+
+            if (5 < 10) {
+                return true;
+            } else {
+                return false;
+            }
+
+            10 == 10;
+            10 != 9;
+            ";
         let tests = vec![
             Token {
                 token_type: TokenType::LET,
@@ -383,6 +403,154 @@ mod test {
             Token {
                 token_type: TokenType::RPAREN,
                 literal: ")",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::BANG,
+                literal: "!",
+            },
+            Token {
+                token_type: TokenType::MINUS,
+                literal: "-",
+            },
+            Token {
+                token_type: TokenType::SLASH,
+                literal: "/",
+            },
+            Token {
+                token_type: TokenType::ASTERISK,
+                literal: "*",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "5",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "5",
+            },
+            Token {
+                token_type: TokenType::LT,
+                literal: "<",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "10",
+            },
+            Token {
+                token_type: TokenType::GT,
+                literal: ">",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "5",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::IF,
+                literal: "if",
+            },
+            Token {
+                token_type: TokenType::LPAREN,
+                literal: "(",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "5",
+            },
+            Token {
+                token_type: TokenType::LT,
+                literal: "<",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "10",
+            },
+            Token {
+                token_type: TokenType::RPAREN,
+                literal: ")",
+            },
+            Token {
+                token_type: TokenType::LBRACE,
+                literal: "{",
+            },
+            Token {
+                token_type: TokenType::RETURN,
+                literal: "return",
+            },
+            Token {
+                token_type: TokenType::TRUE,
+                literal: "true",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::RBRACE,
+                literal: "}",
+            },
+            Token {
+                token_type: TokenType::ELSE,
+                literal: "else",
+            },
+            Token {
+                token_type: TokenType::LBRACE,
+                literal: "{",
+            },
+            Token {
+                token_type: TokenType::RETURN,
+                literal: "return",
+            },
+            Token {
+                token_type: TokenType::FALSE,
+                literal: "false",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::RBRACE,
+                literal: "}",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "10",
+            },
+            Token {
+                token_type: TokenType::EQ,
+                literal: "==",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "10",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "10",
+            },
+            Token {
+                token_type: TokenType::NOT_EQ,
+                literal: "!=",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "9",
             },
             Token {
                 token_type: TokenType::SEMICOLON,
