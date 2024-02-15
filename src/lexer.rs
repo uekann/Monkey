@@ -76,9 +76,9 @@ impl<'a> Lexer<'a> {
             .map(|(_, c)| c)
     }
 
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token<'a> {
         self.skip_whitespace();
-        let token = match self.symbol {
+        let token: Token<'a> = match self.symbol {
             Some('=') => {
                 if self.peak_symbol() == Some('=') {
                     self.read_symbol();
