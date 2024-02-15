@@ -5,4 +5,4 @@
 
 - 識別子のUnicode文字への対応
   - 「🇯🇵」等が変数名などに使える
-  
+- 代数的データ型によるStatment、Expressionの定義
