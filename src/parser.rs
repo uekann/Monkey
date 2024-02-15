@@ -60,6 +60,7 @@ impl<'a> Parser<'a> {
     fn parse_statement(&mut self) -> Result<Statement> {
         match self.cur_token.token_type {
             TokenType::LET => self.parse_let_statement(),
+            TokenType::RETURN => self.parse_return_statement(),
             _ => Ok(Statement::EmptyStatement),
         }
     }
@@ -82,6 +83,12 @@ impl<'a> Parser<'a> {
 
         let value = self.parse_expression()?;
         Ok(Statement::LetStatement { name, value })
+    }
+
+    fn parse_return_statement(&mut self) -> Result<Statement> {
+        self.next_token();
+        let value = self.parse_expression()?;
+        Ok(Statement::ReturnStatement(value))
     }
 
     fn parse_expression(&mut self) -> Result<Expression> {
@@ -144,5 +151,27 @@ let 838383;
         let mut p = Parser::new(l);
         let program = p.parse_program();
         assert!(program.is_err());
+    }
+
+    #[test]
+    fn test_return_statements() {
+        let input = r#"
+return 5;
+return 10;
+return 838383;
+"#;
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 3);
+
+        let tests = vec![
+            Statement::ReturnStatement(Expression::IntegerLiteral(5)),
+            Statement::ReturnStatement(Expression::IntegerLiteral(10)),
+            Statement::ReturnStatement(Expression::IntegerLiteral(838383)),
+        ];
+        for (i, tt) in tests.iter().enumerate() {
+            assert_eq!(&program.statements[i], tt);
+        }
     }
 }
