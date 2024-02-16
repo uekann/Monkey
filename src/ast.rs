@@ -1,11 +1,12 @@
 use std::fmt::Display;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     EmptyStatement,
     LetStatement { name: String, value: Expression },
     ReturnStatement(Expression),
     ExpressionStatement(Expression),
+    BlockStatement { statements: Vec<Statement> },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -13,6 +14,7 @@ pub enum Expression {
     EmptyExpression,
     Identifier(String),
     IntegerLiteral(i64),
+    Boolean(bool),
     PrefixExpression {
         operator: String,
         right: Box<Expression>,
@@ -21,6 +23,11 @@ pub enum Expression {
         left: Box<Expression>,
         operator: String,
         right: Box<Expression>,
+    },
+    IFExpression {
+        condition: Box<Expression>,
+        consequence: Box<Statement>,
+        alternative: Option<Box<Statement>>,
     },
 }
 
@@ -35,6 +42,7 @@ impl Display for Expression {
             Expression::EmptyExpression => write!(f, ""),
             Expression::Identifier(ident) => write!(f, "{}", ident),
             Expression::IntegerLiteral(int) => write!(f, "{}", int),
+            Expression::Boolean(b) => write!(f, "{}", b),
             Expression::PrefixExpression { operator, right } => {
                 write!(f, "({}{})", operator, right)
             }
@@ -43,6 +51,17 @@ impl Display for Expression {
                 operator,
                 right,
             } => write!(f, "({} {} {})", left, operator, right),
+            Expression::IFExpression {
+                condition,
+                consequence,
+                alternative,
+            } => {
+                let alt = match alternative {
+                    Some(alt) => format!("else {}", alt),
+                    None => "".to_string(),
+                };
+                write!(f, "if {} {} {}", condition, consequence, alt)
+            }
         }
     }
 }
@@ -54,6 +73,14 @@ impl Display for Statement {
             Statement::LetStatement { name, value } => write!(f, "let {} = {};", name, value),
             Statement::ReturnStatement(expr) => write!(f, "return {};", expr),
             Statement::ExpressionStatement(expr) => write!(f, "{}", expr),
+            Statement::BlockStatement { statements } => {
+                let result = statements
+                    .iter()
+                    .map(|s| format!("{}", s))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+                write!(f, "{{\n {}\n}}", result)
+            }
         }
     }
 }
