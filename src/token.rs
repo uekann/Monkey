@@ -41,14 +41,14 @@ pub enum TokenType {
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
-pub struct Token<'a> {
+pub struct Token {
     pub token_type: TokenType,
-    pub literal: &'a str,
+    pub literal: String,
 }
 
 impl TokenType {
-    pub fn lookup_ident(ident: &str) -> TokenType {
-        match ident {
+    pub fn lookup_ident(ident: &String) -> TokenType {
+        match ident.as_str() {
             "fn" => TokenType::FUNCTION,
             "let" => TokenType::LET,
             "true" => TokenType::TRUE,
