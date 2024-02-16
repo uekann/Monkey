@@ -1,6 +1,6 @@
 use crate::token::{Token, TokenType};
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct Lexer<'a> {
     input: &'a str,
     position: usize,
@@ -185,9 +185,22 @@ impl<'a> Lexer<'a> {
     }
 }
 
+impl<'a> Iterator for Lexer<'a> {
+    type Item = Token<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token: Token<'a> = self.next_token();
+        if token.token_type == TokenType::EOF {
+            None
+        } else {
+            Some(token)
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::token::{Token, TokenType};
+    use crate::token::{self, Token, TokenType};
 
     use super::Lexer;
 
@@ -598,6 +611,77 @@ mod test {
         for test in tests.iter() {
             let token: Token = l.next_token();
             assert_eq!(token, *test)
+        }
+    }
+
+    #[test]
+    fn test_iterator() {
+        let input = "let x = 5; let y = 10; let foobar = 838383;";
+        let tests = vec![
+            Token {
+                token_type: TokenType::LET,
+                literal: "let",
+            },
+            Token {
+                token_type: TokenType::IDENT,
+                literal: "x",
+            },
+            Token {
+                token_type: TokenType::ASSIGN,
+                literal: "=",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "5",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::LET,
+                literal: "let",
+            },
+            Token {
+                token_type: TokenType::IDENT,
+                literal: "y",
+            },
+            Token {
+                token_type: TokenType::ASSIGN,
+                literal: "=",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "10",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+            Token {
+                token_type: TokenType::LET,
+                literal: "let",
+            },
+            Token {
+                token_type: TokenType::IDENT,
+                literal: "foobar",
+            },
+            Token {
+                token_type: TokenType::ASSIGN,
+                literal: "=",
+            },
+            Token {
+                token_type: TokenType::INT,
+                literal: "838383",
+            },
+            Token {
+                token_type: TokenType::SEMICOLON,
+                literal: ";",
+            },
+        ];
+        let l = Lexer::new(input);
+        for (i, token) in l.enumerate() {
+            assert_eq!(token, tests[i]);
         }
     }
 }
