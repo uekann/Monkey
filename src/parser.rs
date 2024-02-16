@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::vec;
 
 use crate::ast::{Expression, Program, Statement};
 use crate::lexer::Lexer;
@@ -35,32 +36,49 @@ impl Precedence {
 
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
-    cur_token: Token<'a>,
-    peek_token: Token<'a>,
+    cur_token: Token,
+    peek_token: Token,
     prefix_parse_fns: HashMap<TokenType, fn(&mut Parser<'a>) -> Result<Expression>>,
     infix_parse_fns: HashMap<TokenType, fn(&mut Parser<'a>, Expression) -> Result<Expression>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(lexer: Lexer<'a>) -> Parser<'a> {
+        let prefix_parse_funs_vec: Vec<(TokenType, fn(&mut Parser<'a>) -> Result<Expression>)> = vec![
+            (TokenType::IDENT, Parser::parse_identifier),
+            (TokenType::INT, Parser::parse_integer_literal),
+            (TokenType::BANG, Parser::parse_prefix_expression),
+            (TokenType::MINUS, Parser::parse_prefix_expression),
+            (TokenType::LPAREN, Parser::parse_grouped_expression),
+        ];
+
+        let infix_parse_funs_vec: Vec<(
+            TokenType,
+            fn(&mut Parser<'a>, Expression) -> Result<Expression>,
+        )> = vec![
+            (TokenType::PLUS, Parser::parse_infix_expression),
+            (TokenType::MINUS, Parser::parse_infix_expression),
+            (TokenType::SLASH, Parser::parse_infix_expression),
+            (TokenType::ASTERISK, Parser::parse_infix_expression),
+            (TokenType::EQ, Parser::parse_infix_expression),
+            (TokenType::NOT_EQ, Parser::parse_infix_expression),
+            (TokenType::LT, Parser::parse_infix_expression),
+            (TokenType::GT, Parser::parse_infix_expression),
+        ];
+
         let mut p = Parser {
             lexer: lexer,
             cur_token: Token {
                 token_type: TokenType::EOF,
-                literal: "",
+                literal: String::new(),
             },
             peek_token: Token {
                 token_type: TokenType::EOF,
-                literal: "",
+                literal: String::new(),
             },
-            prefix_parse_fns: HashMap::new(),
-            infix_parse_fns: HashMap::new(),
+            prefix_parse_fns: prefix_parse_funs_vec.into_iter().collect(),
+            infix_parse_fns: infix_parse_funs_vec.into_iter().collect(),
         };
-
-        p.prefix_parse_fns
-            .insert(TokenType::IDENT, Parser::parse_identifier);
-        p.prefix_parse_fns
-            .insert(TokenType::INT, Parser::parse_integer_literal);
 
         p.next_token();
         p.next_token();
@@ -79,6 +97,10 @@ impl<'a> Parser<'a> {
         } else {
             false
         }
+    }
+
+    fn cur_precedence(&self) -> Precedence {
+        Precedence::from_token_type(self.cur_token.token_type)
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
@@ -175,13 +197,12 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_infix(&mut self, left: Expression) -> Result<Expression> {
-        let token_type = self.peek_token.token_type;
+        let token_type = self.cur_token.token_type;
         let infix_fn = self.infix_parse_fns.get(&token_type);
         if infix_fn.is_none() {
             return Ok(left);
         }
         let infix_fn = infix_fn.unwrap().clone();
-        self.next_token();
         infix_fn(self, left)
     }
 
@@ -192,6 +213,45 @@ impl<'a> Parser<'a> {
     fn parse_integer_literal(&mut self) -> Result<Expression> {
         let value = self.cur_token.literal.parse::<i64>()?;
         Ok(Expression::IntegerLiteral(value))
+    }
+
+    fn parse_prefix_expression(&mut self) -> Result<Expression> {
+        let operator = self.cur_token.literal.to_string();
+        ensure!(
+            self.cur_token.token_type == TokenType::BANG
+                || self.cur_token.token_type == TokenType::MINUS,
+            "expected token to be BANG or MINUS, got {:?} instead",
+            self.cur_token.token_type
+        );
+        self.next_token();
+        let right = self.parse_expression(Precedence::PREFIX)?;
+        Ok(Expression::PrefixExpression {
+            operator,
+            right: Box::new(right),
+        })
+    }
+
+    fn parse_grouped_expression(&mut self) -> Result<Expression> {
+        self.next_token();
+        let expression = self.parse_expression(Precedence::LOWEST)?;
+        ensure!(
+            self.expect_peek(TokenType::RPAREN),
+            "expected next token to be RPAREN, got {:?} instead",
+            self.peek_token.token_type
+        );
+        Ok(expression)
+    }
+
+    fn parse_infix_expression(&mut self, left: Expression) -> Result<Expression> {
+        let operator = self.cur_token.literal.to_string();
+        let precedence = self.cur_precedence();
+        self.next_token();
+        let right = self.parse_expression(precedence)?;
+        Ok(Expression::InfixExpression {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        })
     }
 }
 
@@ -263,6 +323,127 @@ return 838383;
         ];
         for (i, tt) in tests.iter().enumerate() {
             assert_eq!(&program.statements[i], tt);
+        }
+    }
+
+    #[test]
+    fn test_infix_expression() {
+        let input = r#"
+5 + 5;
+5 - 5;
+5 * 5;
+5 / 5;
+5 > 5;
+5 < 5;
+5 == 5;
+5 != 5;
+"#;
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 8);
+
+        let tests = vec![
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "+".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "-".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "*".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "/".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: ">".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "<".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "==".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::InfixExpression {
+                left: Box::new(Expression::IntegerLiteral(5)),
+                operator: "!=".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+        ];
+        for (i, tt) in tests.iter().enumerate() {
+            assert_eq!(
+                &program.statements[i],
+                &Statement::ExpressionStatement(tt.clone())
+            );
+        }
+    }
+
+    #[test]
+    fn test_prefix_expression() {
+        let input = r#"
+!5;
+-15;
+"#;
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 2);
+
+        let tests = vec![
+            Expression::PrefixExpression {
+                operator: "!".to_string(),
+                right: Box::new(Expression::IntegerLiteral(5)),
+            },
+            Expression::PrefixExpression {
+                operator: "-".to_string(),
+                right: Box::new(Expression::IntegerLiteral(15)),
+            },
+        ];
+        for (i, tt) in tests.iter().enumerate() {
+            assert_eq!(
+                &program.statements[i],
+                &Statement::ExpressionStatement(tt.clone())
+            );
+        }
+    }
+
+    #[test]
+    fn test_operator_precedence_parsing() {
+        let tests = vec![
+            ("!-a", "(!(-a))"),
+            ("a + b", "(a + b)"),
+            ("a * b", "(a * b)"),
+            ("a + b * c", "(a + (b * c))"),
+            ("a + b / c", "(a + (b / c))"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)\n((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
+        for (input, expected) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program().unwrap();
+            assert_eq!(format!("{}", program), expected);
         }
     }
 }
