@@ -68,6 +68,7 @@ impl<'a> Parser<'a> {
             (TokenType::NOT_EQ, Parser::parse_infix_expression),
             (TokenType::LT, Parser::parse_infix_expression),
             (TokenType::GT, Parser::parse_infix_expression),
+            (TokenType::LPAREN, Parser::parse_call_expression),
         ];
 
         let mut p = Parser {
@@ -356,6 +357,35 @@ impl<'a> Parser<'a> {
             right: Box::new(right),
         })
     }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Expression>> {
+        let mut args = Vec::new();
+        if self.peek_token.token_type == TokenType::RPAREN {
+            self.next_token();
+            return Ok(args);
+        }
+        self.next_token();
+        args.push(self.parse_expression(Precedence::LOWEST)?);
+        while self.peek_token.token_type == TokenType::COMMA {
+            self.next_token();
+            self.next_token();
+            args.push(self.parse_expression(Precedence::LOWEST)?);
+        }
+        ensure!(
+            self.expect_peek(TokenType::RPAREN),
+            "expected next token to be RPAREN, got {:?} instead",
+            self.peek_token.token_type
+        );
+        Ok(args)
+    }
+
+    fn parse_call_expression(&mut self, function: Expression) -> Result<Expression> {
+        let arguments = self.parse_call_arguments()?;
+        Ok(Expression::CallExpression {
+            function: Box::new(function),
+            arguments,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -630,19 +660,23 @@ fn(x, y) { x + y; }
         let program = p.parse_program().unwrap();
         assert_eq!(program.statements.len(), 1);
 
-        let tests = vec![Statement::ExpressionStatement(Expression::FunctionLiteral {
-            parameters: vec![
-                Expression::Identifier("x".to_string()),
-                Expression::Identifier("y".to_string()),
-            ],
-            body: Box::new(Statement::BlockStatement {
-                statements: vec![Statement::ExpressionStatement(Expression::InfixExpression {
-                    left: Box::new(Expression::Identifier("x".to_string())),
-                    operator: "+".to_string(),
-                    right: Box::new(Expression::Identifier("y".to_string())),
-                })],
-            }),
-        })];
+        let tests = vec![Statement::ExpressionStatement(
+            Expression::FunctionLiteral {
+                parameters: vec![
+                    Expression::Identifier("x".to_string()),
+                    Expression::Identifier("y".to_string()),
+                ],
+                body: Box::new(Statement::BlockStatement {
+                    statements: vec![Statement::ExpressionStatement(
+                        Expression::InfixExpression {
+                            left: Box::new(Expression::Identifier("x".to_string())),
+                            operator: "+".to_string(),
+                            right: Box::new(Expression::Identifier("y".to_string())),
+                        },
+                    )],
+                }),
+            },
+        )];
         for (i, tt) in tests.iter().enumerate() {
             assert_eq!(&program.statements[i], tt);
         }
@@ -667,12 +701,41 @@ fn(x, y) { x + y; }
             assert_eq!(
                 &Statement::ExpressionStatement(Expression::FunctionLiteral {
                     parameters: expected,
-                    body: Box::new(Statement::BlockStatement {
-                        statements: vec![]
-                    })
+                    body: Box::new(Statement::BlockStatement { statements: vec![] })
                 }),
                 stmt
             );
+        }
+    }
+
+    #[test]
+    fn test_call_expression_parsing() {
+        let input = r#"
+add(1, 2 * 3, 4 + 5);
+"#;
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program().unwrap();
+        assert_eq!(program.statements.len(), 1);
+
+        let tests = vec![Statement::ExpressionStatement(Expression::CallExpression {
+            function: Box::new(Expression::Identifier("add".to_string())),
+            arguments: vec![
+                Expression::IntegerLiteral(1),
+                Expression::InfixExpression {
+                    left: Box::new(Expression::IntegerLiteral(2)),
+                    operator: "*".to_string(),
+                    right: Box::new(Expression::IntegerLiteral(3)),
+                },
+                Expression::InfixExpression {
+                    left: Box::new(Expression::IntegerLiteral(4)),
+                    operator: "+".to_string(),
+                    right: Box::new(Expression::IntegerLiteral(5)),
+                },
+            ],
+        })];
+        for (i, tt) in tests.iter().enumerate() {
+            assert_eq!(&program.statements[i], tt);
         }
     }
 }

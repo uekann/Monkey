@@ -33,6 +33,10 @@ pub enum Expression {
         parameters: Vec<Expression>,
         body: Box<Statement>,
     },
+    CallExpression {
+        function: Box<Expression>,
+        arguments: Vec<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq)]
@@ -73,6 +77,17 @@ impl Display for Expression {
                     .collect::<Vec<String>>()
                     .join(", ");
                 write!(f, "fn({}) {}", params, body)
+            }
+            Expression::CallExpression {
+                function,
+                arguments,
+            } => {
+                let args = arguments
+                    .iter()
+                    .map(|a| format!("{}", a))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "{}({})", function, args)
             }
         }
     }
