@@ -3,6 +3,7 @@ pub enum Statement {
     EmptyStatement,
     LetStatement { name: String, value: Expression },
     ReturnStatement(Expression),
+    ExpressionStatement(Expression),
 }
 
 #[derive(Debug, PartialEq)]
