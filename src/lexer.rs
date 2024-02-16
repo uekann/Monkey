@@ -8,6 +8,7 @@ pub struct Lexer<'a> {
     symbol: Option<char>, // Changed type to Option<char>
 }
 
+/// Returns true if the character can be used as an identifier
 fn can_use_as_ident(c: char) -> bool {
     !(c.is_ascii_digit() || c.is_whitespace() || c.is_control() || c.is_ascii_punctuation())
 }
@@ -21,6 +22,8 @@ impl<'a> Lexer<'a> {
         l.read_symbol();
         l
     }
+
+    /// Reads the next character and updates the symbol
     fn read_symbol(&mut self) -> () {
         self.position = self.read_position;
         match self.input[self.read_position..].char_indices().next() {
@@ -35,6 +38,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Reads the next identifier
     fn read_identifier(&mut self) -> &'a str {
         let position = self.position;
         while let Some(symbol) = self.peak_symbol() {
@@ -47,6 +51,7 @@ impl<'a> Lexer<'a> {
         &self.input[position..self.read_position]
     }
 
+    /// Reads the next number
     fn read_number(&mut self) -> &'a str {
         let position = self.position;
         while let Some(symbol) = self.peak_symbol() {
@@ -59,6 +64,7 @@ impl<'a> Lexer<'a> {
         &self.input[position..self.read_position]
     }
 
+    /// Skips the whitespace
     fn skip_whitespace(&mut self) -> () {
         while let Some(symbol) = self.symbol {
             if symbol.is_whitespace() {
@@ -69,6 +75,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    /// Returns the next character without updating the symbol
     fn peak_symbol(&self) -> Option<char> {
         self.input[self.read_position..]
             .char_indices()
@@ -76,6 +83,7 @@ impl<'a> Lexer<'a> {
             .map(|(_, c)| c)
     }
 
+    /// Returns the next token
     pub fn next_token(&mut self) -> Token<'a> {
         self.skip_whitespace();
         let token: Token<'a> = match self.symbol {
