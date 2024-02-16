@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum TokenType {
     ILLEGAL,
@@ -40,7 +40,7 @@ pub enum TokenType {
     RETURN,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq, Hash)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub literal: &'a str,
