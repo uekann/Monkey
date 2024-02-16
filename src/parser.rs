@@ -107,7 +107,6 @@ impl<'a> Parser<'a> {
 mod tests {
     use super::*;
     use crate::lexer::Lexer;
-    use crate::token::TokenType;
 
     #[test]
     fn test_let_statements() {
