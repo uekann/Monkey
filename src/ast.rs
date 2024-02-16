@@ -24,10 +24,14 @@ pub enum Expression {
         operator: String,
         right: Box<Expression>,
     },
-    IFExpression {
+    IfExpression {
         condition: Box<Expression>,
         consequence: Box<Statement>,
         alternative: Option<Box<Statement>>,
+    },
+    FunctionLiteral {
+        parameters: Vec<Expression>,
+        body: Box<Statement>,
     },
 }
 
@@ -51,7 +55,7 @@ impl Display for Expression {
                 operator,
                 right,
             } => write!(f, "({} {} {})", left, operator, right),
-            Expression::IFExpression {
+            Expression::IfExpression {
                 condition,
                 consequence,
                 alternative,
@@ -61,6 +65,14 @@ impl Display for Expression {
                     None => "".to_string(),
                 };
                 write!(f, "if {} {} {}", condition, consequence, alt)
+            }
+            Expression::FunctionLiteral { parameters, body } => {
+                let params = parameters
+                    .iter()
+                    .map(|p| format!("{}", p))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "fn({}) {}", params, body)
             }
         }
     }
