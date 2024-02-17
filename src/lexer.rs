@@ -208,7 +208,7 @@ impl<'a> Iterator for Lexer<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::token::{self, Token, TokenType};
+    use crate::token::{Token, TokenType};
 
     use super::Lexer;
 

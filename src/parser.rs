@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::vec;
-
 use crate::ast::{Expression, Program, Statement};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -38,39 +35,10 @@ pub struct Parser<'a> {
     lexer: Lexer<'a>,
     cur_token: Token,
     peek_token: Token,
-    prefix_parse_fns: HashMap<TokenType, fn(&mut Parser<'a>) -> Result<Expression>>,
-    infix_parse_fns: HashMap<TokenType, fn(&mut Parser<'a>, Expression) -> Result<Expression>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(lexer: Lexer<'a>) -> Parser<'a> {
-        let prefix_parse_funs_vec: Vec<(TokenType, fn(&mut Parser<'a>) -> Result<Expression>)> = vec![
-            (TokenType::IDENT, Parser::parse_identifier),
-            (TokenType::INT, Parser::parse_integer_literal),
-            (TokenType::TRUE, Parser::parse_boolean),
-            (TokenType::FALSE, Parser::parse_boolean),
-            (TokenType::BANG, Parser::parse_prefix_expression),
-            (TokenType::MINUS, Parser::parse_prefix_expression),
-            (TokenType::LPAREN, Parser::parse_grouped_expression),
-            (TokenType::IF, Parser::parse_if_expression),
-            (TokenType::FUNCTION, Parser::parse_function_literal),
-        ];
-
-        let infix_parse_funs_vec: Vec<(
-            TokenType,
-            fn(&mut Parser<'a>, Expression) -> Result<Expression>,
-        )> = vec![
-            (TokenType::PLUS, Parser::parse_infix_expression),
-            (TokenType::MINUS, Parser::parse_infix_expression),
-            (TokenType::SLASH, Parser::parse_infix_expression),
-            (TokenType::ASTERISK, Parser::parse_infix_expression),
-            (TokenType::EQ, Parser::parse_infix_expression),
-            (TokenType::NOT_EQ, Parser::parse_infix_expression),
-            (TokenType::LT, Parser::parse_infix_expression),
-            (TokenType::GT, Parser::parse_infix_expression),
-            (TokenType::LPAREN, Parser::parse_call_expression),
-        ];
-
         let mut p = Parser {
             lexer: lexer,
             cur_token: Token {
@@ -81,8 +49,6 @@ impl<'a> Parser<'a> {
                 token_type: TokenType::EOF,
                 literal: String::new(),
             },
-            prefix_parse_fns: prefix_parse_funs_vec.into_iter().collect(),
-            infix_parse_fns: infix_parse_funs_vec.into_iter().collect(),
         };
 
         p.next_token();
@@ -106,6 +72,42 @@ impl<'a> Parser<'a> {
 
     fn cur_precedence(&self) -> Precedence {
         Precedence::from_token_type(self.cur_token.token_type)
+    }
+
+    fn get_prefix_parse_fn(
+        &self,
+        t: TokenType,
+    ) -> Option<fn(&mut Parser<'a>) -> Result<Expression>> {
+        match t {
+            TokenType::IDENT => Some(Parser::parse_identifier),
+            TokenType::INT => Some(Parser::parse_integer_literal),
+            TokenType::TRUE => Some(Parser::parse_boolean),
+            TokenType::FALSE => Some(Parser::parse_boolean),
+            TokenType::BANG => Some(Parser::parse_prefix_expression),
+            TokenType::MINUS => Some(Parser::parse_prefix_expression),
+            TokenType::LPAREN => Some(Parser::parse_grouped_expression),
+            TokenType::IF => Some(Parser::parse_if_expression),
+            TokenType::FUNCTION => Some(Parser::parse_function_literal),
+            _ => None,
+        }
+    }
+
+    fn get_infix_parse_fn(
+        &self,
+        t: TokenType,
+    ) -> Option<fn(&mut Parser<'a>, Expression) -> Result<Expression>> {
+        match t {
+            TokenType::PLUS => Some(Parser::parse_infix_expression),
+            TokenType::MINUS => Some(Parser::parse_infix_expression),
+            TokenType::SLASH => Some(Parser::parse_infix_expression),
+            TokenType::ASTERISK => Some(Parser::parse_infix_expression),
+            TokenType::EQ => Some(Parser::parse_infix_expression),
+            TokenType::NOT_EQ => Some(Parser::parse_infix_expression),
+            TokenType::LT => Some(Parser::parse_infix_expression),
+            TokenType::GT => Some(Parser::parse_infix_expression),
+            TokenType::LPAREN => Some(Parser::parse_call_expression),
+            _ => None,
+        }
     }
 
     pub fn parse_program(&mut self) -> Result<Program> {
@@ -207,7 +209,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_prefix(&mut self) -> Result<Expression> {
-        let prefix_fn = self.prefix_parse_fns.get(&self.cur_token.token_type);
+        let prefix_fn = self.get_prefix_parse_fn(self.cur_token.token_type);
         ensure!(
             prefix_fn.is_some(),
             "no prefix parse function for {:?} found",
@@ -219,7 +221,7 @@ impl<'a> Parser<'a> {
 
     fn parse_infix(&mut self, left: Expression) -> Result<Expression> {
         let token_type = self.cur_token.token_type;
-        let infix_fn = self.infix_parse_fns.get(&token_type);
+        let infix_fn = self.get_infix_parse_fn(token_type);
         if infix_fn.is_none() {
             return Ok(left);
         }

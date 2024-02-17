@@ -1,6 +1,6 @@
-use crate::ast::Program;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+#[allow(unused_imports)]
 use crate::token::TokenType;
 use std::io::{self, Write};
 
