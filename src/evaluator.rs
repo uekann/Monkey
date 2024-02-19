@@ -1,11 +1,13 @@
 use crate::ast::*;
-use crate::object::Object;
+use crate::object::{Environment, Object};
 use anyhow::{bail, Result};
 
 pub fn eval_program(program: Program) -> Result<Object> {
+    let mut env = Environment::new();
+
     let mut result = Object::Null;
     for statement in program.statements {
-        result = eval_statement(statement)?;
+        result = eval_statement(statement, &mut env)?;
         if let Object::ReturnValue(val) = result {
             return Ok(*val);
         }
@@ -13,16 +15,16 @@ pub fn eval_program(program: Program) -> Result<Object> {
     Ok(result)
 }
 
-fn eval_statement(statement: Statement) -> Result<Object> {
+fn eval_statement(statement: Statement, env: &mut Environment) -> Result<Object> {
     match statement {
         Statement::ExpressionStatement(expr) => {
-            let val = eval_expression(expr)?;
+            let val = eval_expression(expr, env)?;
             Ok(val)
         }
         Statement::BlockStatement { statements } => {
             let mut result = Object::Null;
             for statement in statements {
-                result = eval_statement(statement)?;
+                result = eval_statement(statement, env)?;
                 if let Object::ReturnValue(_) = result {
                     return Ok(result);
                 }
@@ -30,19 +32,28 @@ fn eval_statement(statement: Statement) -> Result<Object> {
             Ok(result)
         }
         Statement::ReturnStatement(expr) => {
-            let val = eval_expression(expr)?;
+            let val = eval_expression(expr, env)?;
             Ok(Object::ReturnValue(Box::new(val)))
+        }
+        Statement::LetStatement { name, value } => {
+            let val = eval_expression(value, env)?;
+            env.set(name, val);
+            Ok(Object::Null)
         }
         _ => Ok(Object::Null),
     }
 }
 
-fn eval_expression(expression: Expression) -> Result<Object> {
+fn eval_expression(expression: Expression, env: &mut Environment) -> Result<Object> {
     match expression {
         Expression::IntegerLiteral(i) => Ok(Object::Integer(i)),
         Expression::Boolean(b) => Ok(Object::Boolean(b)),
+        Expression::Identifier(name) => match env.get(&name) {
+            Some(val) => Ok(val.clone()),
+            None => bail!("identifier not found: {}", name),
+        },
         Expression::PrefixExpression { operator, right } => {
-            let right = eval_expression(*right)?;
+            let right = eval_expression(*right, env)?;
             match operator.as_str() {
                 "!" => eval_bang_prefix_expression(right),
                 "-" => eval_minus_prefix_operator_expression(right),
@@ -54,8 +65,8 @@ fn eval_expression(expression: Expression) -> Result<Object> {
             operator,
             right,
         } => {
-            let left = eval_expression(*left)?;
-            let right = eval_expression(*right)?;
+            let left = eval_expression(*left, env)?;
+            let right = eval_expression(*right, env)?;
             eval_infix_expression(operator, left, right)
         }
         Expression::IfExpression {
@@ -63,14 +74,14 @@ fn eval_expression(expression: Expression) -> Result<Object> {
             consequence,
             alternative,
         } => {
-            let condition = eval_expression(*condition)?.cast_to_boolean()?;
+            let condition = eval_expression(*condition, env)?.cast_to_boolean()?;
             debug_assert!(matches!(condition, Object::Boolean(_)));
             debug_assert!(matches!(*consequence, Statement::BlockStatement { .. }));
             if condition == Object::Boolean(true) {
-                eval_statement(*consequence)
+                eval_statement(*consequence, env)
             } else if let Some(alt) = alternative {
                 debug_assert!(matches!(*alt, Statement::BlockStatement { .. }));
-                eval_statement(*alt)
+                eval_statement(*alt, env)
             } else {
                 Ok(Object::Null)
             }
@@ -104,12 +115,27 @@ fn eval_infix_expression(operator: String, left: Object, right: Object) -> Resul
             ">" => Ok(Object::Boolean(left > right)),
             "==" => Ok(Object::Boolean(left == right)),
             "!=" => Ok(Object::Boolean(left != right)),
-            _ => bail!("unknown operator: {} {} {}", left, operator, right),
+            _ => bail!(
+                "unknown operator: {:?} {} {:?}",
+                Object::Integer(left),
+                operator,
+                Object::Integer(right)
+            ),
         },
         (Object::Boolean(left), Object::Boolean(right)) => match operator.as_str() {
             "==" => Ok(Object::Boolean(left == right)),
             "!=" => Ok(Object::Boolean(left != right)),
-            _ => bail!("unknown operator: {} {} {}", left, operator, right),
+            _ => bail!(
+                "unknown operator: {:?} {} {:?}",
+                Object::Boolean(left),
+                operator,
+                Object::Boolean(right)
+            ),
+        },
+        (Object::Null, Object::Null) => match operator.as_str() {
+            "==" => Ok(Object::Boolean(true)),
+            "!=" => Ok(Object::Boolean(false)),
+            _ => bail!("unknown operator: Null {} Null", operator),
         },
         (left, right) => bail!("type mismatch: {:?} {} {:?}", left, operator, right),
     }
@@ -238,6 +264,64 @@ mod tests {
                 }",
                 Object::Integer(10),
             ),
+        ];
+        for (input, expected) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program().unwrap();
+            let evaluated = eval_program(program).unwrap();
+            assert_eq!(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let tests = vec![
+            ("5 + true;", "type mismatch: Integer(5) + Boolean(true)"),
+            ("5 + true; 5;", "type mismatch: Integer(5) + Boolean(true)"),
+            ("-true", "cannot use '-' operator on Boolean(true)"),
+            (
+                "true + false;",
+                "unknown operator: Boolean(true) + Boolean(false)",
+            ),
+            (
+                "5; true + false; 5",
+                "unknown operator: Boolean(true) + Boolean(false)",
+            ),
+            (
+                "if (10 > 1) { true + false; }",
+                "unknown operator: Boolean(true) + Boolean(false)",
+            ),
+            (
+                r#"
+                if (10 > 1) {
+                    if (10 > 1) {
+                        return true + false;
+                    }
+                    return 1;
+                }
+                "#,
+                "unknown operator: Boolean(true) + Boolean(false)",
+            ),
+            ("foobar", "identifier not found: foobar"),
+        ];
+        for (input, expected) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program().unwrap();
+            let evaluated = eval_program(program);
+            assert!(evaluated.is_err());
+            assert_eq!(evaluated.err().unwrap().to_string(), expected);
+        }
+    }
+
+    #[test]
+    fn test_let_statement() {
+        let tests = vec![
+            ("let a = 5; a;", Object::Integer(5)),
+            ("let a = 5 * 5; a;", Object::Integer(25)),
+            ("let a = 5; let b = a; b;", Object::Integer(5)),
+            ("let a = 5; let b = a; let c = a + b + 5; c;", Object::Integer(15)),
         ];
         for (input, expected) in tests {
             let l = Lexer::new(input);
