@@ -3,11 +3,16 @@ use crate::object::{Environment, Object};
 use anyhow::{bail, Result};
 
 pub fn eval_program(program: Program) -> Result<Object> {
+    /// Evaluate the given program and return the result.
+    // Create a new environment for the program.
     let mut env = Environment::new();
 
+    // Evaluate each statement in the program.
     let mut result = Object::Null;
     for statement in program.statements {
         result = eval_statement(statement, &mut env)?;
+
+        // If the result is a ReturnValue, return the value.
         if let Object::ReturnValue(val) = result {
             return Ok(*val);
         }
@@ -17,10 +22,13 @@ pub fn eval_program(program: Program) -> Result<Object> {
 
 fn eval_statement(statement: Statement, env: &mut Environment) -> Result<Object> {
     match statement {
+        // If the statement is an expression, evaluate it and return the result.
         Statement::ExpressionStatement(expr) => {
             let val = eval_expression(expr, env)?;
             Ok(val)
         }
+
+        // If the statement is a block statement, evaluate each statement in the block.
         Statement::BlockStatement { statements } => {
             let mut result = Object::Null;
             for statement in statements {
@@ -31,10 +39,14 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Result<Object>
             }
             Ok(result)
         }
+
+        // If the statement is a return statement, evaluate the expression and return the result.
         Statement::ReturnStatement(expr) => {
             let val = eval_expression(expr, env)?;
             Ok(Object::ReturnValue(Box::new(val)))
         }
+
+        // If the statement is a let statement, evaluate the expression and store the result in the environment.
         Statement::LetStatement { name, value } => {
             let val = eval_expression(value, env)?;
             env.set(name, val);
@@ -46,12 +58,19 @@ fn eval_statement(statement: Statement, env: &mut Environment) -> Result<Object>
 
 fn eval_expression(expression: Expression, env: &mut Environment) -> Result<Object> {
     match expression {
+        // If the expression is an integer literal, return the integer value.
         Expression::IntegerLiteral(i) => Ok(Object::Integer(i)),
+
+        // If the expression is a boolean literal, return the boolean value.
         Expression::Boolean(b) => Ok(Object::Boolean(b)),
+
+        // If the expression is an identifier, look up the value in the environment and return it.
         Expression::Identifier(name) => match env.get(&name) {
             Some(val) => Ok(val.clone()),
             None => bail!("identifier not found: {}", name),
         },
+
+        // If the expression is a prefix expression, evaluate the right expression and apply the operator.
         Expression::PrefixExpression { operator, right } => {
             let right = eval_expression(*right, env)?;
             match operator.as_str() {
@@ -60,6 +79,8 @@ fn eval_expression(expression: Expression, env: &mut Environment) -> Result<Obje
                 _ => Ok(Object::Null),
             }
         }
+
+        // If the expression is an infix expression, evaluate the left and right expressions and apply the operator.
         Expression::InfixExpression {
             left,
             operator,
@@ -69,6 +90,8 @@ fn eval_expression(expression: Expression, env: &mut Environment) -> Result<Obje
             let right = eval_expression(*right, env)?;
             eval_infix_expression(operator, left, right)
         }
+
+        // If the expression is a block expression, evaluate each statement in the block.
         Expression::IfExpression {
             condition,
             consequence,
@@ -91,6 +114,7 @@ fn eval_expression(expression: Expression, env: &mut Environment) -> Result<Obje
 }
 
 fn eval_bang_prefix_expression(right: Object) -> Result<Object> {
+    /// Evaluate the given prefix expression with the '!' operator and return the result.
     match right {
         Object::Boolean(b) => Ok(Object::Boolean(!b)),
         _ => eval_bang_prefix_expression(right.cast_to_boolean()?),
@@ -98,6 +122,7 @@ fn eval_bang_prefix_expression(right: Object) -> Result<Object> {
 }
 
 fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
+    /// Evaluate the given prefix expression with the '-' operator and return the result.
     match right {
         Object::Integer(i) => Ok(Object::Integer(-i)),
         _ => bail!("cannot use '-' operator on {:?}", right),
@@ -105,7 +130,9 @@ fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
 }
 
 fn eval_infix_expression(operator: String, left: Object, right: Object) -> Result<Object> {
+    /// Evaluate the given infix expression and return the result.
     match (left, right) {
+        // If both operands are integers, apply the operator and return the result.
         (Object::Integer(left), Object::Integer(right)) => match operator.as_str() {
             "+" => Ok(Object::Integer(left + right)),
             "-" => Ok(Object::Integer(left - right)),
@@ -122,6 +149,8 @@ fn eval_infix_expression(operator: String, left: Object, right: Object) -> Resul
                 Object::Integer(right)
             ),
         },
+
+        // If both operands are booleans, apply the operator and return the result.
         (Object::Boolean(left), Object::Boolean(right)) => match operator.as_str() {
             "==" => Ok(Object::Boolean(left == right)),
             "!=" => Ok(Object::Boolean(left != right)),
@@ -132,11 +161,15 @@ fn eval_infix_expression(operator: String, left: Object, right: Object) -> Resul
                 Object::Boolean(right)
             ),
         },
+
+        // If both operands are null, apply the operator and return the result.
         (Object::Null, Object::Null) => match operator.as_str() {
             "==" => Ok(Object::Boolean(true)),
             "!=" => Ok(Object::Boolean(false)),
             _ => bail!("unknown operator: Null {} Null", operator),
         },
+
+        // If the operands are different types, return an error.
         (left, right) => bail!("type mismatch: {:?} {} {:?}", left, operator, right),
     }
 }
@@ -321,7 +354,11 @@ mod tests {
             ("let a = 5; a;", Object::Integer(5)),
             ("let a = 5 * 5; a;", Object::Integer(25)),
             ("let a = 5; let b = a; b;", Object::Integer(5)),
-            ("let a = 5; let b = a; let c = a + b + 5; c;", Object::Integer(15)),
+            (
+                "let a = 5; let b = a; let c = a + b + 5; c;",
+                Object::Integer(15),
+            ),
+            ("let a = 5; let b = a; let a = 10; b;", Object::Integer(5)),
         ];
         for (input, expected) in tests {
             let l = Lexer::new(input);
