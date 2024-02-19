@@ -6,6 +6,9 @@ pub fn eval_program(program: Program) -> Result<Object> {
     let mut result = Object::Null;
     for statement in program.statements {
         result = eval_statement(statement)?;
+        if let Object::ReturnValue(val) = result {
+            return Ok(*val);
+        }
     }
     Ok(result)
 }
@@ -20,8 +23,15 @@ fn eval_statement(statement: Statement) -> Result<Object> {
             let mut result = Object::Null;
             for statement in statements {
                 result = eval_statement(statement)?;
+                if let Object::ReturnValue(_) = result {
+                    return Ok(result);
+                }
             }
             Ok(result)
+        }
+        Statement::ReturnStatement(expr) => {
+            let val = eval_expression(expr)?;
+            Ok(Object::ReturnValue(Box::new(val)))
         }
         _ => Ok(Object::Null),
     }
@@ -101,7 +111,7 @@ fn eval_infix_expression(operator: String, left: Object, right: Object) -> Resul
             "!=" => Ok(Object::Boolean(left != right)),
             _ => bail!("unknown operator: {} {} {}", left, operator, right),
         },
-        _ => bail!("type mismatch: {:?} {} {:?}", left, operator, right),
+        (left, right) => bail!("type mismatch: {:?} {} {:?}", left, operator, right),
     }
 }
 
@@ -202,6 +212,32 @@ mod tests {
             ("if (1 > 2) { 10 }", Object::Null),
             ("if (1 > 2) { 10 } else { 20 }", Object::Integer(20)),
             ("if (1 < 2) { 10 } else { 20 }", Object::Integer(10)),
+        ];
+        for (input, expected) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program().unwrap();
+            let evaluated = eval_program(program).unwrap();
+            assert_eq!(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_return_statement() {
+        let tests = vec![
+            ("return 10;", Object::Integer(10)),
+            ("return 10; 9;", Object::Integer(10)),
+            ("return 2 * 5; 9;", Object::Integer(10)),
+            ("9; return 2 * 5; 9;", Object::Integer(10)),
+            (
+                "if (10 > 1) {
+                    if (10 > 1) {
+                        return 10;
+                    }
+                    return 1;
+                }",
+                Object::Integer(10),
+            ),
         ];
         for (input, expected) in tests {
             let l = Lexer::new(input);
