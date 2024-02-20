@@ -1,4 +1,6 @@
+use crate::ast::{Expression, Statement};
 use anyhow::{bail, Result};
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Object {
@@ -6,6 +8,15 @@ pub enum Object {
     Boolean(bool),
     Null,
     ReturnValue(Box<Object>),
+    FunctionObject {
+        parameters: Vec<Expression>,
+        body: Statement,
+        env: Environment,
+    },
+    FunctionApplication {
+        function: Box<Object>,
+        arguments: Vec<Object>,
+    },
 }
 
 impl Object {
@@ -20,19 +31,28 @@ impl Object {
     }
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
     store: std::collections::HashMap<String, Object>,
+    outer: Option<Box<Environment>>,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
-            store: std::collections::HashMap::new(),
+            store: HashMap::new(),
+            outer: None,
         }
     }
 
     pub fn get(&self, name: &str) -> Option<&Object> {
-        self.store.get(name)
+        match self.store.get(name) {
+            Some(obj) => Some(obj),
+            None => match &self.outer {
+                Some(outer) => outer.get(name),
+                None => None,
+            },
+        }
     }
 
     pub fn set(&mut self, name: String, value: Object) {

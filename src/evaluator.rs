@@ -3,7 +3,7 @@ use crate::object::{Environment, Object};
 use anyhow::{bail, Result};
 
 pub fn eval_program(program: Program) -> Result<Object> {
-    /// Evaluate the given program and return the result.
+    // Evaluate the given program and return the result.
     // Create a new environment for the program.
     let mut env = Environment::new();
 
@@ -109,12 +109,33 @@ fn eval_expression(expression: Expression, env: &mut Environment) -> Result<Obje
                 Ok(Object::Null)
             }
         }
+
+        // If the expression is a function literal, return the function object.
+        Expression::FunctionLiteral { parameters, body } => Ok(Object::FunctionObject {
+            parameters,
+            body: *body,
+            env: env.clone(),
+        }),
+
+        // If the expression is a function application, evaluate the function and the arguments and apply the function.
+        Expression::CallExpression {
+            function,
+            arguments,
+        } => {
+            let function = eval_expression(*function, env)?;
+            assert!(matches!(function, Object::FunctionObject { .. }));
+            let arguments = arguments
+                .into_iter()
+                .map(|arg| eval_expression(arg, env))
+                .collect::<Result<Vec<Object>>>()?;
+            apply_function(function, arguments)
+        }
         _ => Ok(Object::Null),
     }
 }
 
 fn eval_bang_prefix_expression(right: Object) -> Result<Object> {
-    /// Evaluate the given prefix expression with the '!' operator and return the result.
+    // Evaluate the given prefix expression with the '!' operator and return the result.
     match right {
         Object::Boolean(b) => Ok(Object::Boolean(!b)),
         _ => eval_bang_prefix_expression(right.cast_to_boolean()?),
@@ -122,7 +143,7 @@ fn eval_bang_prefix_expression(right: Object) -> Result<Object> {
 }
 
 fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
-    /// Evaluate the given prefix expression with the '-' operator and return the result.
+    // Evaluate the given prefix expression with the '-' operator and return the result.
     match right {
         Object::Integer(i) => Ok(Object::Integer(-i)),
         _ => bail!("cannot use '-' operator on {:?}", right),
@@ -130,7 +151,7 @@ fn eval_minus_prefix_operator_expression(right: Object) -> Result<Object> {
 }
 
 fn eval_infix_expression(operator: String, left: Object, right: Object) -> Result<Object> {
-    /// Evaluate the given infix expression and return the result.
+    // Evaluate the given infix expression and return the result.
     match (left, right) {
         // If both operands are integers, apply the operator and return the result.
         (Object::Integer(left), Object::Integer(right)) => match operator.as_str() {
@@ -171,6 +192,34 @@ fn eval_infix_expression(operator: String, left: Object, right: Object) -> Resul
 
         // If the operands are different types, return an error.
         (left, right) => bail!("type mismatch: {:?} {} {:?}", left, operator, right),
+    }
+}
+
+fn apply_function(function: Object, arguments: Vec<Object>) -> Result<Object> {
+    // Apply the given function to the given arguments and return the result.
+    match function {
+        // If the function is a function object, create a new environment for the function and evaluate the body.
+        Object::FunctionObject {
+            parameters,
+            body,
+            env: _,
+        } => {
+            let mut extended_env = Environment::new();
+            if parameters.len() != arguments.len() {
+                bail!(
+                    "wrong number of arguments: expected={}, got={}",
+                    parameters.len(),
+                    arguments.len()
+                );
+            }
+            for (param, arg) in parameters.iter().zip(arguments) {
+                extended_env.set(param.to_string(), arg);
+            }
+            eval_statement(body, &mut extended_env)
+        }
+
+        // If the function is not a function object or a function application, return an error.
+        function => bail!("not a function: {:?}", function),
     }
 }
 
@@ -359,6 +408,35 @@ mod tests {
                 Object::Integer(15),
             ),
             ("let a = 5; let b = a; let a = 10; b;", Object::Integer(5)),
+        ];
+        for (input, expected) in tests {
+            let l = Lexer::new(input);
+            let mut p = Parser::new(l);
+            let program = p.parse_program().unwrap();
+            let evaluated = eval_program(program).unwrap();
+            assert_eq!(evaluated, expected);
+        }
+    }
+
+    #[test]
+    fn test_function_object() {
+        let input = "fn(x) { x + 2; };";
+        let l = Lexer::new(input);
+        let mut p = Parser::new(l);
+        let program = p.parse_program().unwrap();
+        let evaluated = eval_program(program).unwrap();
+        assert!(matches!(evaluated, Object::FunctionObject { .. }));
+    }
+
+    #[test]
+    fn test_function_application() {
+        let tests = vec![
+            ("let identity = fn(x) { x; }; identity(5);", Object::Integer(5)),
+            ("let identity = fn(x) { return x; }; identity(5);", Object::Integer(5)),
+            ("let double = fn(x) { x * 2; }; double(5);", Object::Integer(10)),
+            ("let add = fn(x, y) { x + y; }; add(5, 5);", Object::Integer(10)),
+            ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", Object::Integer(20)),
+            ("fn(x) { x; }(5)", Object::Integer(5)),
         ];
         for (input, expected) in tests {
             let l = Lexer::new(input);
